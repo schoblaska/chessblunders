@@ -1,9 +1,5 @@
-require 'rubygems'
-require 'bundler'
-
-Bundler.require
-
 require './lib/passant'
+require './lib/ruby_uci'
 
 class ChessBlunders
 end
