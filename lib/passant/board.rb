@@ -1,0 +1,244 @@
+require 'forwardable'
+
+module Passant
+
+  # Basic chess board.
+  class Board
+    extend Forwardable
+    class Exception < StandardError; end
+    
+    PieceLetterMap = { Pawn   => ['P','p'],
+                       Knight => ['N','n'],
+                       Bishop => ['B','b'],
+                       Rook   => ['R','r'],
+                       Queen  => ['Q','q'],
+                       King   => ['K','k'] }
+    
+    # White's left rook is origo (0,0)
+    InitialPosition = [ 'rnbqkbnr',
+                        'pppppppp',
+                        '........',
+                        '........',
+                        '........',
+                        '........',
+                        'PPPPPPPP',
+                        'RNBQKBNR'  ]
+  
+    # delegate rule methods to RulesEngine passing self as first argument
+    def self.delegate_to_rules(*meths)
+      meths.each do |meth|
+        class_eval %Q(def #{meth}(*args)
+                        @rules.send('#{meth}', *([self]+args))
+                      end)
+      end
+    end
+    
+    def self.freezing_attr_reader(*attribute_names)
+      attribute_names.each do |attribute_name|
+        class_eval %Q(def #{attribute_name}
+                        @#{attribute_name}.dup.freeze
+                      end)
+      end
+    end
+    
+    attr_reader :rules
+    freezing_attr_reader :pieces, :takebacks, :history
+    
+    delegate_to_rules :valid_move?, :valid_linear_move?, :en_passant,
+                      :castlings, :check?, :checkmate?, :draw?
+    
+    def_delegators :value, :value_str
+    
+    def initialize(position=InitialPosition)
+      @rules = RulesEngine.instance
+      @takebacks = []
+      set position
+    end
+
+    def self.new_empty
+      Board.new(['.'*8]*8)
+    end
+    
+    # Move a piece.
+    # Move parsing needs a color so we have to guess the turn belongs to 
+    # opponent of last move or white.
+    # (Board is not turn based, see GameBoard)
+    def move(move_str)
+      color = last_move ? opponent(last_move.piece.color) : :white
+      MoveParser.instance.parse(self, color, move_str).apply
+    end
+    
+    # Move using absolute from and to squares
+    def move_abs(from, to)
+      piece = self.at(from)
+      if piece and mv = piece.move_leading_to(to)
+        mv.apply
+      else
+        raise Exception.new("Invalid move.")
+      end
+    end
+    
+    def add_piece(piece)
+      @pieces << piece
+    end
+  
+    def remove_piece(piece)
+      @pieces.delete(piece)
+    end
+
+    def off_limits?(position)
+      position[0] > 7 or position[0] < 0 or \
+      position[1] > 7 or position[1] < 0
+    end
+  
+    def at(pos)
+      @pieces.detect{|p| p.position == pos}
+    end
+  
+    def king(color)
+      @pieces.detect{|p| p.class == King and p.color == color}
+    end
+
+    # resets the board, setting pieces to initial position
+    def reset
+      set InitialPosition
+    end
+
+    def add_history(mv)
+      @history << mv
+      @string_rep = nil
+    end
+    
+    def remove_history(mv)
+      @history.delete(mv)
+      @string_rep = nil
+    end
+    
+    def last_move
+      @history.last
+    end
+    
+    def set(board_data)
+      @pieces = []
+      @history = []
+      board_data = board_data.split if board_data.is_a?(String)
+    
+      board_data.reverse.each_with_index do |row, y|
+        x = 0
+        row.size.times do |i|
+          letter = row[i,1]
+          new_piece_by_letter(letter, [x,y]) if letter != '.'
+          x += 1
+        end
+      end
+    end
+    
+    def to_a
+      rep = ['........', '........', '........', '........',
+             '........', '........', '........', '........']
+      @pieces.each do |p|
+        letter = letter_for_piece(p)
+        rep[p.position[1]][p.position[0]] = letter
+      end
+      rep
+    end
+
+    def to_fen
+      color = last_move ? opponent(last_move.piece.color) : :white
+      array = self.to_a.reverse
+
+      array.each do |row|
+        row.gsub!(/\.{8}/, '8')
+        row.gsub!(/\.{7}/, '7')
+        row.gsub!(/\.{6}/, '6')
+        row.gsub!(/\.{5}/, '5')
+        row.gsub!(/\.{4}/, '4')
+        row.gsub!(/\.{3}/, '3')
+        row.gsub!(/\.{2}/, '2')
+        row.gsub!(/\.{1}/, '1')
+      end
+
+      [].tap do |fen|
+        fen << array.join('/')
+        fen << (color == :white ? 'w' : 'b')
+        fen << 'KQkq'
+        fen << '-'
+        fen << 0
+        fen << [1, @history.size / 2].max
+      end.join(' ')
+    end
+    
+    # used extensively
+    def to_s
+      @string_rep ||= to_a.reverse.join("\n")
+    end
+    
+    def all_moves(color, recurse=true, include_castlings=true)
+      mvs = []
+      @pieces.select{|p| p.color == color}.each do |p|
+        mvs << p.moves({:recurse => recurse, 
+                        :include_castlings => include_castlings})
+      end
+      mvs.flatten
+    end
+
+    def after_move(move)
+      raise Board::Exception.new("Invalid piece!") unless @pieces.include?(move.piece)
+      new_board = Board.new(self.to_a.reverse)
+      new_move = move.class.new(new_board.at(move.from), move.to)
+      new_move.apply
+      new_board
+    end
+  
+    def letter_for_piece(piece)
+      pl = PieceLetterMap.detect{|k,v| piece.class == k}
+      piece.color == :white ? pl[1][0] : pl[1][1]
+    end
+  
+    def letter_for_piece_class_and_color(klass, color)
+      pl = PieceLetterMap.detect{|k,v| klass == k}
+      color == :white ? pl[1][0] : pl[1][1]
+    end
+  
+    def take_back
+      last_mv = last_move
+      last_mv.take_back if last_mv
+    end
+    
+    def undo_takeback
+      tb = @takebacks.last
+      tb.apply if tb
+    end
+    
+    def add_takeback(mv)
+      @takebacks << mv
+    end
+    
+    def clear_takebacks_after(mv)
+      @takebacks.clear unless @takebacks.delete(mv)
+    end
+    
+    # N.B. does not take history into account
+    def ==(other)
+      self.to_s == other.to_s
+    end
+  
+    def inspect; "\n"+self.to_s; end
+
+    private
+
+    def opponent(color)
+      color = (color == :white ? :black : :white)
+    end
+
+    def new_piece_by_letter(letter, pos)
+      pl = PieceLetterMap.detect{|k,v| v.include?(letter)}
+      raise "Invalid letter: #{letter}" unless pl
+      klass = pl[0]
+      color = (letter == pl[1][0] ? :white : :black)
+      klass.new(self, pos, color)
+    end
+
+  end
+
+end # module Passant
