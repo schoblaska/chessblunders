@@ -19,7 +19,7 @@ class ChessBlunders
   def initialize(pgn_file)
     @pgn = Passant::PGN::File.new(pgn_file)
     @board = @pgn.games.first.to_board
-    @uci = RubyUCI.new('stockfish', 12)
+    @uci = RubyUCI.new('stockfish', 16)
   end
 
   def evaluate_moves
