@@ -38,11 +38,12 @@ class ChessBlunders
 
     @evaluations.each_with_index do |evaluation, i|
       previous = i == 0 ? 0 : @evaluations[i-1]
-      difference = (evaluation - previous).abs
+      worsening = evaluation - previous
+      worsening *= -1 if i % 2 == 0
 
-      if difference >= 3
+      if worsening >= 3
         @blunders[i] = '??'
-      elsif difference >= 1
+      elsif worsening >= 1
         @blunders[i] = '?'
       end
     end
