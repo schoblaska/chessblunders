@@ -3,7 +3,7 @@ module Passant
   # Move of a piece.
   class Move
     attr_reader :piece, :from, :to
-    attr_accessor :comment
+    attr_accessor :comment, :alg
     
     def initialize(piece, move_to)
       @comment = nil
@@ -39,9 +39,9 @@ module Passant
     
     def to_pgn
       if @comment and @comment.length > 0
-        self.to_s + " {#{@comment}}"
+        self.alg + " {#{@comment}}"
       else
-        self.to_s
+        self.alg
       end
     end
 

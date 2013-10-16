@@ -107,6 +107,7 @@ module Passant
       
       raise ParseError.new("Invalid move: #{move_str}") if mv.nil?
       
+      mv.alg = move_str
       mv
     end
   end

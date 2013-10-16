@@ -162,9 +162,16 @@ module Passant
 
         (@history.size.to_f / 2).ceil.times do |turn|
           turn_arr = []
-          turn_arr << "#{turn+1}."
+          turn_arr << "#{turn+1}. "
           turn_arr << @history[turn*2].to_pgn
-          turn_arr << @history[(turn*2)+1].to_pgn if @history[(turn*2)+1]
+
+          if @history[(turn*2)+1]
+            if @history[turn*2].comment
+              turn_arr << "#{turn+1}... #{@history[(turn*2)+1].to_pgn}"
+            else
+              turn_arr << @history[(turn*2)+1].to_pgn
+            end
+          end
           movetext_arr << turn_arr
         end
 
@@ -188,7 +195,7 @@ module Passant
             row = md
           end
         end
-        movetext += (row + "#{pgn_result}\n")
+        movetext += row
         movetext
       end
 

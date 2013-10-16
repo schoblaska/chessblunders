@@ -9,21 +9,24 @@ require './lib/ruby_uci'
 class ChessBlunders
   def self.annotate(pgn_file, output)
     cb = self.new(pgn_file)
+
     cb.evaluate_moves
     cb.find_blunders
+    cb.annotate_moves
+    cb.write_pgn(output)
   end
 
   def initialize(pgn_file)
     @pgn = Passant::PGN::File.new(pgn_file)
-    @moves = @pgn.games.first.to_board.history
+    @board = @pgn.games.first.to_board
     @uci = RubyUCI.new('stockfish', 12)
   end
 
   def evaluate_moves
     @evaluations = []
 
-    @moves.each_with_index do |move, i|
-      @uci.moves = i == 0 ? '' : @moves[0..i-1].map{|m| m.to_uci}.join(' ')
+    @board.history.each_with_index do |move, i|
+      @uci.moves = i == 0 ? '' : @board.history[0..i-1].map{|m| m.to_uci}.join(' ')
       evaluation = @uci.evaluate(move.to_uci)[:score][:num]
       evaluation *= -1 unless i%2 == 0
       @evaluations << evaluation
@@ -43,5 +46,15 @@ class ChessBlunders
         @blunders[i] = '?'
       end
     end
+  end
+
+  def annotate_moves
+    @blunders.keys.each do |k|
+      @board.history[k].comment = @blunders[k]
+    end
+  end
+
+  def write_pgn(output)
+    File.open(output, 'w') {|f| f.puts @board.to_pgn}
   end
 end
