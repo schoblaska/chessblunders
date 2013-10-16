@@ -7,6 +7,12 @@ require './lib/passant'
 require './lib/ruby_uci'
 
 class ChessBlunders
+  def self.annotate(pgn_file, output)
+    cb = self.new(pgn_file)
+    cb.evaluate_moves
+    cb.find_blunders
+  end
+
   def initialize(pgn_file)
     @pgn = Passant::PGN::File.new(pgn_file)
     @moves = @pgn.games.first.to_board.history
@@ -21,6 +27,21 @@ class ChessBlunders
       evaluation = @uci.evaluate(move.to_uci)[:score][:num]
       evaluation *= -1 unless i%2 == 0
       @evaluations << evaluation
+    end
+  end
+
+  def find_blunders
+    @blunders = {}
+
+    @evaluations.each_with_index do |evaluation, i|
+      previous = i == 0 ? 0 : @evaluations[i-1]
+      difference = (evaluation - previous).abs
+
+      if difference >= 3
+        @blunders[i] = '??'
+      elsif difference >= 1
+        @blunders[i] = '?'
+      end
     end
   end
 end
