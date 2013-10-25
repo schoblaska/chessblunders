@@ -51,7 +51,11 @@ class ChessBlunders
 
   def annotate_moves
     @blunders.keys.each do |k|
-      @board.history[k].comment = @blunders[k]
+      if @board.history[k].comment
+        @board.history[k].comment = "#{@blunders[k]} - #{@board.history[k].comment}"
+      else
+        @board.history[k].comment = @blunders[k]
+      end
     end
   end
 

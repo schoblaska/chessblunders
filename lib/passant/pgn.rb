@@ -67,25 +67,25 @@ module Passant
       # * 'e4 {a comment} e5 ; second comment'
       def self.parse_turn_or_ply(str, board)
         return if str.length == 0
+
         first_move, rest = str.split(' ', 2)
-        rest.gsub!(/\{[^\}]*\}/, '') unless rest.nil?
+        second_move = rest ? rest.gsub(/\{[^\}]*\}/, '').split(' ', 2).first : nil
 
-        if rest
-          rest_1 = rest.split(' ', 2).first
-          rest_parts = rest.split(CommentRegexp)
-          rest_parts.delete('')
-          rest_parts = rest_parts[0]
-        end
-
-        if rest.nil? or rest_parts.empty?
-          ply(board, first_move)
-        elsif rest_1 =~ /[;{]/
-          ply(board, first_move, rest_parts.delete_at(0))
-          ply(board, *rest_parts) unless rest_parts.empty?
+        if second_move.nil? || second_move == ''
+          comment1_match = str.strip.match(/{([^}]*)}/)
         else
-          ply(board, first_move)
-          ply(board, *rest_parts)
+          comment1_match = str.strip.match(/{([^}]*)}.+/)
         end
+
+        comment1 = comment1_match ? comment1_match[1] : nil
+
+        comment2_match = str.strip.match(/{([^}]*)}$/)
+        comment2 = comment2_match ? comment2_match[1] : nil
+
+        ply(board, first_move, comment1)
+        ply(board, second_move, comment2) unless second_move.nil? || second_move == ''
+      rescue => e
+        binding.pry
       end
 
       private
