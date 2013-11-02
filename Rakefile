@@ -18,4 +18,6 @@ task :annotate do
   output_file = ENV['OUTPUT'] || ENV['output'] || input_file.gsub(/\.pgn$/, '_out.pgn')
 
   ChessBlunders.annotate(input_file, output_file)
+
+  `open #{output_file}`
 end
